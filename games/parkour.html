@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏃 雪糕牌跑酷大冒险</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(180deg, #87CEEB 0%, #E0F6FF 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+        h1 {
+            margin-bottom: 10px;
+            font-size: 2em;
+            color: #2c3e50;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        #game-container {
+            position: relative;
+            border: 4px solid #2c3e50;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        #gameCanvas {
+            display: block;
+            background: linear-gradient(180deg, #87CEEB 0%, #98D8EA 100%);
+        }
+        #ui {
+            display: flex;
+            gap: 30px;
+            margin-top: 15px;
+            font-size: 1.2em;
+            color: #2c3e50;
+        }
+        .stat {
+            background: rgba(255, 255, 255, 0.8);
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+        #startBtn {
+            margin-top: 20px;
+            padding: 12px 40px;
+            font-size: 1.2em;
+            background: linear-gradient(135deg, #FF6B6B 0%, #FF8E8E 100%);
+            border: none;
+            border-radius: 30px;
+            color: #fff;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 5px 20px rgba(255, 107, 107, 0.4);
+        }
+        #startBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.6);
+        }
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+            border: 3px solid #FF6B6B;
+            color: #fff;
+        }
+        #gameOver h2 {
+            color: #FF6B6B;
+            margin-bottom: 15px;
+        }
+        #finalScore {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+        }
+        #instructions {
+            margin-top: 20px;
+            text-align: center;
+            color: #2c3e50;
+            font-size: 0.9em;
+            background: rgba(255,255,255,0.7);
+            padding: 15px;
+            border-radius: 10px;
+        }
+        .cloud {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <h1>🏃 雪糕牌跑酷大冒险 🍦</h1>
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        <div id="gameOver">
+            <h2>💥 游戏结束!</h2>
+            <div id="finalScore">得分：0</div>
+            <div id="bestScore">最高：0</div>
+            <button id="restartBtn" onclick="startGame()" style="margin-top: 20px; padding: 10px 30px; font-size: 1.1em; background: linear-gradient(135deg, #4a9eff 0%, #00d4ff 100%); border: none; border-radius: 20px; color: #fff; cursor: pointer;">再玩一次</button>
+        </div>
+    </div>
+    <div id="ui">
+        <div class="stat">🏆 得分：<span id="score">0</span></div>
+        <div class="stat">🥇 最高：<span id="highScore">0</span></div>
+        <div class="stat">⚡ 速度：<span id="speed">1x</span></div>
+    </div>
+    <button id="startBtn" onclick="startGame()">开始跑酷</button>
+    <div id="instructions">
+        <p>🎮 <strong>空格键</strong> 或 <strong>点击屏幕</strong> 跳跃</p>
+        <p>🦘 长按可以跳得更高，躲避障碍物！</p>
+        <p>🌵 撞到仙人掌或掉进坑里就结束</p>
+        <p>⚡ 随着分数增加，速度会越来越快！</p>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 游戏状态
+        let gameRunning = false;
+        let score = 0;
+        let highScore = localStorage.getItem('parkourHighScore') || 0;
+        let gameSpeed = 5;
+        let frameCount = 0;
+        
+        document.getElementById('highScore').textContent = highScore;
+
+        // 玩家
+        const player = {
+            x: 100,
+            y: 0,
+            width: 40,
+            height: 60,
+            velocityY: 0,
+            jumpPower: -15,
+            gravity: 0.8,
+            grounded: false,
+            color: '#FF6B6B'
+        };
+
+        // 障碍物数组
+        let obstacles = [];
+        let clouds = [];
+
+        // 地面
+        const ground = {
+            y: canvas.height - 50,
+            height: 50
+        };
+
+        // 初始化云
+        function initClouds() {
+            clouds = [];
+            for (let i = 0; i < 5; i++) {
+                clouds.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * 150,
+                    width: 60 + Math.random() * 40,
+                    height: 30,
+                    speed: 0.5 + Math.random() * 0.5
+                });
+            }
+        }
+
+        // 生成障碍物
+        function spawnObstacle() {
+            const type = Math.random();
+            let obstacle;
+            
+            if (type < 0.6) {
+                // 仙人掌
+                obstacle = {
+                    x: canvas.width,
+                    y: ground.y - 40,
+                    width: 30,
+                    height: 40,
+                    type: 'cactus',
+                    color: '#27ae60'
+                };
+            } else if (type < 0.8) {
+                // 高仙人掌
+                obstacle = {
+                    x: canvas.width,
+                    y: ground.y - 60,
+                    width: 25,
+                    height: 60,
+                    type: 'tallCactus',
+                    color: '#229954'
+                };
+            } else {
+                // 坑
+                obstacle = {
+                    x: canvas.width,
+                    y: ground.y,
+                    width: 80,
+                    height: 50,
+                    type: 'pit',
+                    color: '#8B4513'
+                };
+            }
+            
+            obstacles.push(obstacle);
+        }
+
+        // 跳跃
+        function jump() {
+            if (!gameRunning) return;
+            if (player.grounded) {
+                player.velocityY = player.jumpPower;
+                player.grounded = false;
+            }
+        }
+
+        // 长按跳得更高
+        let jumpHoldTimer = null;
+        let jumpCharge = 0;
+
+        function startJumpCharge() {
+            if (!gameRunning) return;
+            jumpCharge = 0;
+            jumpHoldTimer = setInterval(() => {
+                jumpCharge += 0.5;
+                if (jumpCharge > 10) jumpCharge = 10;
+            }, 50);
+        }
+
+        function endJumpCharge() {
+            if (jumpHoldTimer) {
+                clearInterval(jumpHoldTimer);
+                jumpHoldTimer = null;
+            }
+            if (player.grounded && jumpCharge > 0) {
+                player.velocityY = player.jumpPower - jumpCharge;
+                player.grounded = false;
+            }
+            jumpCharge = 0;
+        }
+
+        // 更新游戏状态
+        function update() {
+            frameCount++;
+            
+            // 玩家物理
+            player.velocityY += player.gravity;
+            player.y += player.velocityY;
+
+            // 地面碰撞
+            if (player.y + player.height >= ground.y) {
+                player.y = ground.y - player.height;
+                player.velocityY = 0;
+                player.grounded = true;
+            } else {
+                player.grounded = false;
+            }
+
+            // 掉进坑里
+            obstacles.forEach(obs => {
+                if (obs.type === 'pit') {
+                    if (player.x + player.width > obs.x && player.x < obs.x + obs.width) {
+                        if (player.y + player.height >= ground.y) {
+                            gameOver();
+                        }
+                    }
+                }
+            });
+
+            // 更新障碍物
+            obstacles.forEach((obs, index) => {
+                obs.x -= gameSpeed;
+                
+                // 移除屏幕外的障碍物
+                if (obs.x + obs.width < 0) {
+                    obstacles.splice(index, 1);
+                    score += 10;
+                    document.getElementById('score').textContent = score;
+                    
+                    // 加速
+                    if (score % 50 === 0) {
+                        gameSpeed += 0.5;
+                        document.getElementById('speed').textContent = (gameSpeed / 5).toFixed(1) + 'x';
+                    }
+                }
+
+                // 碰撞检测
+                if (
+                    player.x < obs.x + obs.width &&
+                    player.x + player.width > obs.x &&
+                    player.y < obs.y + obs.height &&
+                    player.y + player.height > obs.y
+                ) {
+                    if (obs.type !== 'pit') {
+                        gameOver();
+                    }
+                }
+            });
+
+            // 生成新障碍物
+            if (frameCount % Math.floor(100 - gameSpeed * 3) === 0) {
+                spawnObstacle();
+            }
+
+            // 更新云
+            clouds.forEach(cloud => {
+                cloud.x -= cloud.speed;
+                if (cloud.x + cloud.width < 0) {
+                    cloud.x = canvas.width + cloud.width;
+                    cloud.y = Math.random() * 150;
+                }
+            });
+        }
+
+        // 绘制
+        function draw() {
+            // 清空画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 画云
+            clouds.forEach(cloud => {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.beginPath();
+                ctx.ellipse(cloud.x + cloud.width/2, cloud.y + cloud.height/2, cloud.width/2, cloud.height/2, 0, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 画地面
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(0, ground.y, canvas.width, ground.height);
+            
+            // 画草地
+            ctx.fillStyle = '#27ae60';
+            ctx.fillRect(0, ground.y, canvas.width, 10);
+
+            // 画玩家（小人）
+            ctx.fillStyle = player.color;
+            // 身体
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            // 头
+            ctx.fillStyle = '#FFE4C4';
+            ctx.beginPath();
+            ctx.arc(player.x + player.width/2, player.y - 10, 15, 0, Math.PI * 2);
+            ctx.fill();
+            // 眼睛
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(player.x + player.width/2 + 5, player.y - 12, 3, 0, Math.PI * 2);
+            ctx.fill();
+            // 腿（动画）
+            ctx.fillStyle = player.color;
+            if (player.grounded) {
+                const legOffset = Math.sin(frameCount * 0.3) * 10;
+                ctx.fillRect(player.x + 5, player.y + player.height, 10, 15 + legOffset);
+                ctx.fillRect(player.x + player.width - 15, player.y + player.height, 10, 15 - legOffset);
+            } else {
+                ctx.fillRect(player.x + 5, player.y + player.height, 10, 10);
+                ctx.fillRect(player.x + player.width - 15, player.y + player.height, 10, 10);
+            }
+
+            // 画障碍物
+            obstacles.forEach(obs => {
+                if (obs.type === 'pit') {
+                    ctx.fillStyle = '#654321';
+                    ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                } else {
+                    // 仙人掌
+                    ctx.fillStyle = obs.color;
+                    ctx.fillRect(obs.x + obs.width/2 - 5, obs.y, 10, obs.height);
+                    // 刺
+                    ctx.fillRect(obs.x, obs.y + 10, obs.width/2, 5);
+                    ctx.fillRect(obs.x + obs.width/2, obs.y + 20, obs.width/2, 5);
+                }
+            });
+
+            // 分数显示在画布上
+            ctx.fillStyle = '#2c3e50';
+            ctx.font = 'bold 20px Arial';
+            ctx.fillText(`距离：${Math.floor(score / 10)}m`, 10, 30);
+        }
+
+        // 游戏循环
+        function gameLoop() {
+            if (!gameRunning) return;
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 开始游戏
+        function startGame() {
+            gameRunning = true;
+            score = 0;
+            gameSpeed = 5;
+            frameCount = 0;
+            obstacles = [];
+            player.y = 0;
+            player.velocityY = 0;
+            
+            document.getElementById('score').textContent = score;
+            document.getElementById('speed').textContent = '1x';
+            document.getElementById('gameOver').style.display = 'none';
+            document.getElementById('startBtn').style.display = 'none';
+            
+            initClouds();
+            gameLoop();
+        }
+
+        // 游戏结束
+        function gameOver() {
+            gameRunning = false;
+            
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('parkourHighScore', highScore);
+                document.getElementById('highScore').textContent = highScore;
+            }
+            
+            document.getElementById('finalScore').textContent = `得分：${score}`;
+            document.getElementById('bestScore').textContent = `最高：${highScore}`;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+
+        // 事件监听
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' || e.key === ' ') {
+                e.preventDefault();
+                if (gameRunning) {
+                    startJumpCharge();
+                }
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'Space' || e.key === ' ') {
+                e.preventDefault();
+                if (gameRunning) {
+                    endJumpCharge();
+                }
+            }
+        });
+
+        // 触摸/鼠标支持
+        canvas.addEventListener('mousedown', () => {
+            if (gameRunning) startJumpCharge();
+        });
+        canvas.addEventListener('mouseup', () => {
+            if (gameRunning) endJumpCharge();
+        });
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (gameRunning) startJumpCharge();
+        });
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (gameRunning) endJumpCharge();
+        });
+
+        // 初始画面
+        initClouds();
+        draw();
+    </script>
+</body>
+</html>
