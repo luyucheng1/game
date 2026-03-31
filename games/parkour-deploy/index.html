@@ -9,6 +9,7 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
         body {
             display: flex;
@@ -19,6 +20,9 @@
             background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
         }
         h1 {
             margin-bottom: 10px;
@@ -32,9 +36,13 @@
             border-radius: 10px;
             box-shadow: 0 0 30px rgba(74, 158, 255, 0.5);
             overflow: hidden;
+            max-width: 95vw;
+            max-height: 60vh;
         }
         #gameCanvas {
             display: block;
+            max-width: 100%;
+            height: auto;
         }
         #ui {
             display: flex;
@@ -114,6 +122,72 @@
             color: #aaa;
             font-size: 0.9em;
             max-width: 600px;
+            padding: 0 10px;
+        }
+        
+        /* 移动端自适应 */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.5em;
+                padding: 0 10px;
+            }
+            #game-container {
+                border-width: 2px;
+                max-width: 98vw;
+                max-height: 55vh;
+            }
+            #gameCanvas {
+                width: 100%;
+                height: auto;
+            }
+            #ui {
+                gap: 10px;
+                font-size: 0.9em;
+            }
+            .stat {
+                padding: 5px 10px;
+                font-size: 0.85em;
+            }
+            #startBtn, #levelSelectBtn {
+                padding: 10px 25px;
+                font-size: 1em;
+            }
+            #gameOver, #levelComplete, #levelSelect {
+                min-width: 90vw;
+                padding: 20px;
+                max-width: 95vw;
+            }
+            #gameOver h2, #levelComplete h2, #levelSelect h2 {
+                font-size: 1.3em;
+            }
+            .level-btn {
+                padding: 12px 18px;
+                font-size: 0.95em;
+                margin: 5px;
+            }
+            #instructions {
+                font-size: 0.8em;
+            }
+            #pauseBtn {
+                padding: 6px 12px;
+                font-size: 0.9em;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 1.2em;
+            }
+            #game-container {
+                max-height: 50vh;
+            }
+            #ui {
+                flex-wrap: wrap;
+                font-size: 0.8em;
+            }
+            .stat {
+                padding: 4px 8px;
+            }
         }
         #powerupIndicator {
             position: absolute;
@@ -190,8 +264,9 @@
     <button id="startBtn" onclick="showLevelSelect()">🎮 开始游戏</button>
     
     <div id="instructions">
-        <p>🎮 <strong>空格键</strong> 或 <strong>点击屏幕</strong> 跳跃 | <strong>P 键</strong> 暂停</p>
+        <p>🎮 <strong>空格键</strong> / <strong>点击屏幕</strong> / <strong>触摸屏幕</strong> 跳跃 | <strong>P 键</strong> 暂停</p>
         <p>🪙 收集金币 | ⚡ 吃道具获得特殊能力 | 🎯 达到目标分数进入下一关</p>
+        <p style="margin-top: 5px; color: #666; font-size: 0.85em;">📱 移动端已优化 - 点击任意位置即可跳跃</p>
     </div>
 
     <script>
@@ -739,8 +814,28 @@
             }
         });
 
-        canvas.addEventListener('mousedown', () => jump());
-        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); });
+        // 鼠标点击跳跃
+        canvas.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            jump();
+        });
+        
+        // 触摸跳跃 - 支持移动端
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            jump();
+        }, { passive: false });
+        
+        // 也支持点击整个游戏容器跳跃（移动端更友好）
+        document.getElementById('game-container').addEventListener('touchstart', (e) => {
+            if (e.target === canvas || e.target.id === 'game-container') {
+                e.preventDefault();
+                jump();
+            }
+        }, { passive: false });
+        
+        // 防止双击缩放
+        document.addEventListener('dblclick', (e) => e.preventDefault());
 
         // 初始画面
         draw();
