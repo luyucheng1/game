@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>🏃 雪糕牌跑酷 - 闯关模式</title>
     <style>
         * {
@@ -52,6 +52,7 @@
             color: #fff;
             flex-wrap: wrap;
             justify-content: center;
+            align-items: center;
         }
         .stat {
             background: rgba(255, 255, 255, 0.1);
@@ -59,6 +60,46 @@
             border-radius: 20px;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        #hpContainer {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 5px 15px;
+            border-radius: 20px;
+            border: 2px solid #FF6B6B;
+            min-width: 200px;
+        }
+        #hpBar {
+            width: 100%;
+            height: 20px;
+            background: linear-gradient(90deg, #FF6B6B 0%, #FF8E8E 100%);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        #hpBar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        #hpText {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 12px;
+            font-weight: bold;
+            text-shadow: 0 0 3px #000;
         }
         #startBtn, #levelSelectBtn {
             margin-top: 15px;
@@ -172,6 +213,9 @@
                 padding: 6px 12px;
                 font-size: 0.9em;
             }
+            #hpContainer {
+                min-width: 150px;
+            }
         }
         
         @media (max-width: 480px) {
@@ -220,6 +264,17 @@
             color: #fff;
             cursor: pointer;
         }
+        #damageFlash {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: red;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 50;
+        }
     </style>
 </head>
 <body>
@@ -228,6 +283,7 @@
         <canvas id="gameCanvas" width="800" height="400"></canvas>
         <button id="pauseBtn" onclick="togglePause()">⏸️ 暂停</button>
         <div id="powerupIndicator"></div>
+        <div id="damageFlash"></div>
         
         <div id="gameOver">
             <h2>💥 闯关失败!</h2>
@@ -258,15 +314,22 @@
         <div class="stat">🌟 关卡：<span id="level">1</span></div>
         <div class="stat">💰 金币：<span id="coins">0</span></div>
         <div class="stat">🎯 目标：<span id="goal">0</span></div>
-        <div class="stat">❤️ 生命：<span id="lives">1</span></div>
+        <div id="hpContainer" class="stat">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <span>❤️ 血量</span>
+                <div style="flex:1;position:relative;">
+                    <div id="hpBar"><span id="hpText">100/100</span></div>
+                </div>
+            </div>
+        </div>
     </div>
     
     <button id="startBtn" onclick="showLevelSelect()">🎮 开始游戏</button>
     
     <div id="instructions">
-        <p>🎮 <strong>空格键</strong> / <strong>点击屏幕</strong> / <strong>触摸屏幕</strong> 跳跃 | <strong>P 键</strong> 暂停</p>
-        <p>🪙 收集金币 | ⚡ 吃道具获得特殊能力 | 🎯 达到目标分数进入下一关</p>
-        <p style="margin-top: 5px; color: #666; font-size: 0.85em;">📱 移动端已优化 - 点击任意位置即可跳跃</p>
+        <p>🎮 <strong>空格键</strong> / <strong>点击 1 下</strong> 跳跃 | <strong>快速点击 2 下</strong> 二段跳 (更高)</p>
+        <p>💣 避开炸弹和障碍物 | 🪙 收集金币 | ⚡ 吃道具获得特殊能力</p>
+        <p style="margin-top: 5px; color: #666; font-size: 0.85em;">📱 移动端已优化 - 点击屏幕跳跃，双击跳得更高</p>
     </div>
 
     <script>
@@ -280,60 +343,66 @@
                 goal: 100,
                 speed: 5,
                 obstacleFreq: 100,
+                bombFreq: 150,
                 coinFreq: 60,
                 powerupChance: 0.02,
                 colors: { sky: ['#87CEEB', '#E0F6FF'], ground: '#8B4513', grass: '#27ae60' },
-                lives: 1
+                maxHp: 100
             },
             {
                 name: "🏜️ 沙漠之旅",
                 goal: 200,
                 speed: 6,
                 obstacleFreq: 90,
+                bombFreq: 130,
                 coinFreq: 50,
                 powerupChance: 0.03,
                 colors: { sky: ['#FFA500', '#FFD700'], ground: '#D2691E', grass: '#DAA520' },
-                lives: 1
+                maxHp: 100
             },
             {
                 name: "🌲 森林冒险",
                 goal: 300,
                 speed: 7,
                 obstacleFreq: 80,
+                bombFreq: 110,
                 coinFreq: 45,
                 powerupChance: 0.04,
                 colors: { sky: ['#228B22', '#90EE90'], ground: '#654321', grass: '#006400' },
-                lives: 2
+                maxHp: 120
             },
             {
                 name: "🏔️ 雪山挑战",
                 goal: 400,
                 speed: 8,
                 obstacleFreq: 70,
+                bombFreq: 90,
                 coinFreq: 40,
                 powerupChance: 0.05,
                 colors: { sky: ['#B0E0E6', '#FFFFFF'], ground: '#708090', grass: '#F0F8FF' },
-                lives: 2
+                maxHp: 120
             },
             {
                 name: "🌋 火山危机",
                 goal: 500,
                 speed: 9,
                 obstacleFreq: 60,
+                bombFreq: 80,
                 coinFreq: 35,
                 powerupChance: 0.06,
                 colors: { sky: ['#FF4500', '#FF6347'], ground: '#2F2F2F', grass: '#8B0000' },
-                lives: 3
+                maxHp: 150
             },
             {
                 name: "🌌 终极考验",
                 goal: 700,
                 speed: 11,
                 obstacleFreq: 50,
+                bombFreq: 70,
                 coinFreq: 30,
                 powerupChance: 0.07,
                 colors: { sky: ['#1a1a2e', '#16213e'], ground: '#4a0080', grass: '#9400D3' },
-                lives: 3
+                maxHp: 150
             }
         ];
 
@@ -343,7 +412,7 @@
             { name: "🛡️ 无敌", type: "invincible", duration: 4000, color: '#00FFFF', icon: '🛡️' },
             { name: "💰 双倍金币", type: "doubleCoins", duration: 6000, color: '#FFA500', icon: '💰' },
             { name: "🦘 超级跳", type: "superJump", duration: 5000, color: '#FF69B4', icon: '🦘' },
-            { name: "❤️ 额外生命", type: "extraLife", duration: 0, color: '#FF0000', icon: '❤️' }
+            { name: "❤️ 回复血量", type: "heal", duration: 0, color: '#FF0000', icon: '❤️', healAmount: 30 }
         ];
 
         // 游戏状态
@@ -353,9 +422,12 @@
         let score = 0;
         let coins = 0;
         let frameCount = 0;
-        let lives = 1;
+        let maxHp = 100;
+        let currentHp = 100;
         let activePowerups = [];
         let gameSpeed = 5;
+        let canDoubleJump = false;
+        let lastJumpTime = 0;
 
         // 玩家
         const player = {
@@ -373,6 +445,7 @@
         };
 
         let obstacles = [];
+        let bombs = [];
         let coinsArray = [];
         let powerupsArray = [];
         let particles = [];
@@ -398,10 +471,12 @@
             const level = levels[levelIndex];
             score = 0;
             coins = 0;
-            lives = level.lives;
+            maxHp = level.maxHp;
+            currentHp = maxHp;
             gameSpeed = level.speed;
             activePowerups = [];
             obstacles = [];
+            bombs = [];
             coinsArray = [];
             powerupsArray = [];
             particles = [];
@@ -409,8 +484,10 @@
             player.velocityY = 0;
             player.invincible = false;
             player.superJump = false;
+            canDoubleJump = false;
             
             updateUI();
+            updateHpBar();
         }
 
         function updateUI() {
@@ -419,7 +496,23 @@
             document.getElementById('level').textContent = currentLevel + 1;
             document.getElementById('coins').textContent = coins;
             document.getElementById('goal').textContent = level.goal;
-            document.getElementById('lives').textContent = '❤️'.repeat(lives);
+        }
+
+        function updateHpBar() {
+            const hpPercent = (currentHp / maxHp) * 100;
+            const hpBar = document.getElementById('hpBar');
+            const hpText = document.getElementById('hpText');
+            hpBar.style.width = hpPercent + '%';
+            hpText.textContent = `${Math.floor(currentHp)}/${maxHp}`;
+            
+            // 血量低时变红闪烁
+            if (hpPercent < 30) {
+                hpBar.style.background = 'linear-gradient(90deg, #FF0000 0%, #FF6B6B 100%)';
+            } else if (hpPercent < 60) {
+                hpBar.style.background = 'linear-gradient(90deg, #FFA500 0%, #FFD700 100%)';
+            } else {
+                hpBar.style.background = 'linear-gradient(90deg, #FF6B6B 0%, #FF8E8E 100%)';
+            }
         }
 
         function spawnObstacle() {
@@ -427,16 +520,38 @@
             const type = Math.random();
             let obstacle;
             
-            if (type < 0.5) {
-                obstacle = { x: canvas.width, y: ground.y - 40, width: 30, height: 40, type: 'cactus', color: level.colors.grass };
+            if (type < 0.3) {
+                obstacle = { x: canvas.width, y: ground.y - 40, width: 30, height: 40, type: 'cactus', color: level.colors.grass, damage: 15 };
+            } else if (type < 0.5) {
+                obstacle = { x: canvas.width, y: ground.y - 60, width: 25, height: 60, type: 'tallCactus', color: level.colors.grass, damage: 20 };
             } else if (type < 0.7) {
-                obstacle = { x: canvas.width, y: ground.y - 60, width: 25, height: 60, type: 'tallCactus', color: level.colors.grass };
+                obstacle = { x: canvas.width, y: ground.y - 30, width: 40, height: 30, type: 'rock', color: '#808080', damage: 10 };
             } else if (type < 0.85) {
-                obstacle = { x: canvas.width, y: ground.y - 30, width: 40, height: 30, type: 'rock', color: '#808080' };
+                obstacle = { x: canvas.width, y: ground.y - 50, width: 35, height: 50, type: 'spike', color: '#C0C0C0', damage: 25 };
+            } else if (type < 0.95) {
+                obstacle = { x: canvas.width, y: ground.y - 35, width: 45, height: 35, type: 'log', color: '#8B4513', damage: 15 };
             } else {
-                obstacle = { x: canvas.width, y: ground.y, width: 80, height: 50, type: 'pit', color: '#654321' };
+                obstacle = { x: canvas.width, y: ground.y - 70, width: 30, height: 70, type: 'tree', color: '#228B22', damage: 20 };
             }
             obstacles.push(obstacle);
+        }
+
+        function spawnBomb() {
+            const level = levels[currentLevel];
+            const type = Math.random();
+            let bomb;
+            
+            if (type < 0.4) {
+                // 地面炸弹
+                bomb = { x: canvas.width, y: ground.y - 25, width: 30, height: 25, type: 'groundBomb', color: '#2F2F2F', damage: 30, fuse: 60 };
+            } else if (type < 0.7) {
+                // 空中炸弹
+                bomb = { x: canvas.width, y: ground.y - 80 - Math.random() * 50, width: 28, height: 28, type: 'airBomb', color: '#4A0000', damage: 25, fuse: 45 };
+            } else {
+                // 追踪炸弹
+                bomb = { x: canvas.width, y: ground.y - 60, width: 25, height: 25, type: 'homingBomb', color: '#8B0000', damage: 35, fuse: 80 };
+            }
+            bombs.push(bomb);
         }
 
         function spawnCoin() {
@@ -463,8 +578,9 @@
         }
 
         function activatePowerup(p) {
-            if (p.type === 'extraLife') {
-                lives++;
+            if (p.type === 'heal') {
+                currentHp = Math.min(maxHp, currentHp + p.healAmount);
+                updateHpBar();
                 createParticles(p.x, p.y, p.color, 10);
             } else {
                 activePowerups.push({
@@ -508,11 +624,47 @@
             }
         }
 
-        function jump() {
+        function jump(isDoubleJump = false) {
             if (!gameRunning || paused) return;
+            
+            const now = Date.now();
+            
+            // 检查是否可以二段跳（快速双击）
+            if (isDoubleJump && !player.grounded && now - lastJumpTime < 300) {
+                // 二段跳
+                player.velocityY = player.superJump ? player.jumpPower * 2 : player.jumpPower * 1.4;
+                createParticles(player.x + player.width/2, player.y + player.height, '#FF69B4', 10);
+                lastJumpTime = now;
+                return;
+            }
+            
             if (player.grounded) {
                 player.velocityY = player.superJump ? player.jumpPower * 1.5 : player.jumpPower;
                 player.grounded = false;
+                lastJumpTime = now;
+                canDoubleJump = true;
+            }
+        }
+
+        function takeDamage(amount) {
+            if (player.invincible) return;
+            
+            currentHp -= amount;
+            updateHpBar();
+            createParticles(player.x, player.y, '#FF0000', 20);
+            
+            // 屏幕闪红
+            const flash = document.getElementById('damageFlash');
+            flash.style.opacity = 0.5;
+            setTimeout(() => flash.style.opacity = 0, 200);
+            
+            if (currentHp <= 0) {
+                currentHp = 0;
+                updateHpBar();
+                gameOver();
+            } else {
+                player.invincible = true;
+                setTimeout(() => player.invincible = false, 1500);
             }
         }
 
@@ -533,6 +685,7 @@
                 player.y = ground.y - player.height;
                 player.velocityY = 0;
                 player.grounded = true;
+                canDoubleJump = true;
             }
 
             // 更新障碍物
@@ -545,17 +698,40 @@
                     player.x + player.width > obs.x &&
                     player.y < obs.y + obs.height &&
                     player.y + player.height > obs.y) {
-                    if (obs.type !== 'pit') {
-                        lives--;
-                        updateUI();
-                        createParticles(player.x, player.y, '#FF0000', 20);
-                        if (lives <= 0) {
-                            gameOver();
-                        } else {
-                            player.invincible = true;
-                            setTimeout(() => player.invincible = false, 2000);
-                        }
-                    }
+                    takeDamage(obs.damage);
+                    obstacles.splice(index, 1);
+                }
+            });
+
+            // 更新炸弹
+            bombs.forEach((bomb, index) => {
+                bomb.x -= gameSpeed;
+                
+                // 追踪炸弹会稍微向玩家移动
+                if (bomb.type === 'homingBomb') {
+                    if (player.y < bomb.y) bomb.y -= 1;
+                    if (player.y > bomb.y) bomb.y += 1;
+                }
+                
+                // 炸弹倒计时
+                bomb.fuse--;
+                if (bomb.fuse <= 0) {
+                    // 炸弹爆炸
+                    createParticles(bomb.x, bomb.y, '#FF4500', 30);
+                    bombs.splice(index, 1);
+                    continue;
+                }
+                
+                if (bomb.x + bomb.width < 0) bombs.splice(index, 1);
+
+                if (!player.invincible &&
+                    player.x < bomb.x + bomb.width &&
+                    player.x + player.width > bomb.x &&
+                    player.y < bomb.y + bomb.height &&
+                    player.y + player.height > bomb.y) {
+                    takeDamage(bomb.damage);
+                    createParticles(bomb.x, bomb.y, '#FF4500', 25);
+                    bombs.splice(index, 1);
                 }
             });
 
@@ -601,9 +777,12 @@
                 if (p.life <= 0) particles.splice(index, 1);
             });
 
-            // 生成障碍物和金币
+            // 生成障碍物、炸弹和金币
             if (frameCount % Math.floor(level.obstacleFreq - gameSpeed * 2) === 0) {
                 spawnObstacle();
+            }
+            if (frameCount % Math.floor(level.bombFreq) === 0) {
+                spawnBomb();
             }
             if (frameCount % Math.floor(level.coinFreq) === 0) {
                 for (let i = 0; i < 3; i++) {
@@ -641,17 +820,71 @@
 
             // 画障碍物
             obstacles.forEach(obs => {
-                if (obs.type === 'pit') {
+                if (obs.type === 'spike') {
+                    // 尖刺
                     ctx.fillStyle = obs.color;
-                    ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                    ctx.beginPath();
+                    ctx.moveTo(obs.x, obs.y + obs.height);
+                    ctx.lineTo(obs.x + obs.width/2, obs.y);
+                    ctx.lineTo(obs.x + obs.width, obs.y + obs.height);
+                    ctx.fill();
                 } else if (obs.type === 'rock') {
+                    // 石头
                     ctx.fillStyle = obs.color;
                     ctx.beginPath();
                     ctx.arc(obs.x + obs.width/2, obs.y + obs.height/2, obs.width/2, 0, Math.PI * 2);
                     ctx.fill();
-                } else {
+                } else if (obs.type === 'log') {
+                    // 圆木
+                    ctx.fillStyle = obs.color;
+                    ctx.beginPath();
+                    ctx.ellipse(obs.x + obs.width/2, obs.y + obs.height/2, obs.width/2, obs.height/2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (obs.type === 'tree') {
+                    // 树
                     ctx.fillStyle = obs.color;
                     ctx.fillRect(obs.x + obs.width/2 - 5, obs.y, 10, obs.height);
+                    ctx.beginPath();
+                    ctx.arc(obs.x + obs.width/2, obs.y + 15, 20, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    // 仙人掌
+                    ctx.fillStyle = obs.color;
+                    ctx.fillRect(obs.x + obs.width/2 - 5, obs.y, 10, obs.height);
+                }
+            });
+
+            // 画炸弹
+            bombs.forEach(bomb => {
+                // 炸弹主体
+                ctx.fillStyle = bomb.color;
+                ctx.beginPath();
+                ctx.arc(bomb.x + bomb.width/2, bomb.y + bomb.height/2, bomb.width/2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 引信
+                ctx.strokeStyle = '#8B4513';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(bomb.x + bomb.width/2, bomb.y);
+                ctx.lineTo(bomb.x + bomb.width/2 + 5, bomb.y - 8);
+                ctx.stroke();
+                
+                // 火花
+                if (bomb.fuse < 30) {
+                    ctx.fillStyle = bomb.fuse % 10 < 5 ? '#FF4500' : '#FFA500';
+                    ctx.beginPath();
+                    ctx.arc(bomb.x + bomb.width/2 + 5, bomb.y - 10, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                // 追踪炸弹眼睛
+                if (bomb.type === 'homingBomb') {
+                    ctx.fillStyle = '#FF0000';
+                    ctx.beginPath();
+                    ctx.arc(bomb.x + bomb.width/2 - 5, bomb.y + bomb.height/2 - 3, 4, 0, Math.PI * 2);
+                    ctx.arc(bomb.x + bomb.width/2 + 5, bomb.y + bomb.height/2 - 3, 4, 0, Math.PI * 2);
+                    ctx.fill();
                 }
             });
 
@@ -681,7 +914,13 @@
 
             // 画玩家
             ctx.fillStyle = player.invincible ? '#FFF' : player.color;
+            if (player.invincible && Math.floor(Date.now() / 100) % 2 === 0) {
+                ctx.globalAlpha = 0.5;
+            }
             ctx.fillRect(player.x, player.y, player.width, player.height);
+            ctx.globalAlpha = 1;
+            
+            // 玩家脸
             ctx.fillStyle = '#FFE4C4';
             ctx.beginPath();
             ctx.arc(player.x + player.width/2, player.y - 10, 15, 0, Math.PI * 2);
@@ -804,6 +1043,9 @@
         }
 
         // 事件监听
+        let touchStartTime = 0;
+        let touchCount = 0;
+
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space' || e.key === ' ') {
                 e.preventDefault();
@@ -814,23 +1056,62 @@
             }
         });
 
-        // 鼠标点击跳跃
+        // 鼠标点击跳跃 - 支持双击
         canvas.addEventListener('mousedown', (e) => {
             e.preventDefault();
-            jump();
+            const now = Date.now();
+            if (now - touchStartTime < 300) {
+                touchCount++;
+                if (touchCount >= 2) {
+                    jump(true); // 二段跳
+                    touchCount = 0;
+                } else {
+                    jump(false);
+                }
+            } else {
+                touchCount = 1;
+                jump(false);
+            }
+            touchStartTime = now;
         });
         
-        // 触摸跳跃 - 支持移动端
+        // 触摸跳跃 - 支持移动端双击
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            jump();
+            const now = Date.now();
+            if (now - touchStartTime < 300) {
+                touchCount++;
+                if (touchCount >= 2) {
+                    jump(true); // 二段跳
+                    touchCount = 0;
+                } else {
+                    jump(false);
+                }
+            } else {
+                touchCount = 1;
+                jump(false);
+            }
+            touchStartTime = now;
         }, { passive: false });
         
         // 也支持点击整个游戏容器跳跃（移动端更友好）
         document.getElementById('game-container').addEventListener('touchstart', (e) => {
             if (e.target === canvas || e.target.id === 'game-container') {
                 e.preventDefault();
-                jump();
+                const now = Date.now();
+                if (now - touchStartTime < 300) {
+                    touchCount++;
+                    if (touchCount >= 2) {
+                        jump(true);
+                        touchCount = 0;
+                    } else {
+                        jump(false);
+                    }
+                } else {
+                    touchCount = 1;
+                    jump(false);
+                }
+                touchStartTime = now;
             }
         }, { passive: false });
         
